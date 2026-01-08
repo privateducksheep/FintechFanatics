@@ -14,7 +14,8 @@ from xrpl.wallet import Wallet
 from xrpl.clients import JsonRpcClient
 from xrpl.account import get_balance
 from xrpl.models.transactions import Payment
-from xrpl.transaction import safe_sign_and_autofill_transaction, send_reliable_submission
+from xrpl.transaction import autofill_and_sign, submit_and_wait
+
 from xrpl.utils import xrp_to_drops
 
 # Environment
@@ -103,10 +104,10 @@ async def send_tx(uid: str, to: str, amount: float):
             amount=xrp_to_drops(amount)
         )
         # Fill sequence, fee, last ledger & sign
-        signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
+        signed_tx = await autofill_and_sign(payment, client, wallet)
         # Submit to XRPL
-        response = send_reliable_submission(signed_tx, client)
-        return {"tx_hash": response.result["hash"]}
+        response = await submit_and_wait(signed_tx, client)
+        return {"tx_hash": response.result.get("hash")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,17 +1,42 @@
-# env files
+# ======================
+# Environment / secrets
+# ======================
 .env
+.env.*
 **/.env
+serviceAccountKey.json
+**/*serviceAccount*.json
+*.pem
+*.key
 
-# python
-venv/
+# ======================
+# Python
+# ======================
 .venv/
+venv/
+**/.venv
+**/venv
+__pycache__/
 **/__pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
 
-# node
+# ======================
+# Node / Expo
+# ======================
 node_modules/
-
-# expo / mac
 .expo/
+.expo-shared/
 dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================
+# OS / Editor
+# ======================
 .DS_Store
+.vscode/
