@@ -13,12 +13,15 @@ from firebase_admin import credentials, auth
 
 # XRPL
 from xrpl.wallet import Wallet
-from xrpl.clients import JsonRpcClient
 from xrpl.account import get_balance
 from xrpl.models.transactions import Payment
 from xrpl.transaction import autofill_and_sign, submit_and_wait
 
 from xrpl.utils import xrp_to_drops
+
+from xrpl.asyncio.clients import AsyncJsonRpcClient
+from xrpl.asyncio.account import get_balance
+from xrpl.asyncio.transaction import autofill_and_sign, submit_and_wait
 
 # Environment
 import os
@@ -30,7 +33,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 XRPL_SERVER = os.getenv("XRPL_SERVER") or "https://s.altnet.rippletest.net:51234"
-client = JsonRpcClient(XRPL_SERVER)
+client = AsyncJsonRpcClient(XRPL_SERVER)
 
 # ----------------------
 # Firebase initialization
@@ -99,7 +102,7 @@ async def wallet_balance(uid: str):
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not initialized")
     try:
-        balance = get_balance(wallet.classic_address, client)
+        balance = await get_balance(wallet.classic_address, client)
         return {"balance": balance}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
