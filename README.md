@@ -57,7 +57,8 @@ Copy code
 cd services/api
 python -m venv venv
 source venv/bin/activate     # macOS / Linux
-pip install -r requirements.txt
+pip install fastapi uvicorn python-dotenv
+pip install httpx
 python -m uvicorn main:app --reload --port 8000
 ✅ You should see:
 
