@@ -1,24 +1,19 @@
+# FastAPI
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+# Firebase Admin
 import firebase_admin
 from firebase_admin import credentials, auth
+
+# XRPL
 from xrpl.wallet import Wallet
 from xrpl.clients import JsonRpcClient
-from xrpl.account import get_balance
 from xrpl.models.transactions import Payment
-from xrpl.transaction import send_reliable_submission  # for older versions
-from xrpl.wallet import Wallet
-from xrpl.account import get_next_valid_seq_number
+from xrpl.transaction import autofill_transaction, safe_sign_transaction, submit_transaction
 from xrpl.utils import xrp_to_drops
-from xrpl.transaction import send_transaction
-from xrpl.clients import JsonRpcClient
-from xrpl.transaction import submit_transaction
-from xrpl.models.transactions import Transaction
-from xrpl.transaction import safe_sign_transaction, autofill_transaction
-from xrpl.models.transactions import Payment
-from xrpl.utils import xrp_to_drops
-from xrpl.clients import JsonRpcClient
-from xrpl.transaction import safe_sign_transaction, autofill_transaction, submit_transaction
+
+# Environment variables
 import os
 from dotenv import load_dotenv
 
@@ -62,17 +57,27 @@ async def send_tx(uid: str, to: str, amount: float):
     wallet = wallets.get(uid)
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not initialized")
+
     try:
+        # Create payment
         payment = Payment(
             account=wallet.classic_address,
             destination=to,
             amount=xrp_to_drops(amount),
         )
-        signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
-        tx_response = submit_and_wait(signed_tx, client)
-        return {"tx_hash": tx_response.result["hash"]}
+
+        # Autofill fee, sequence, last ledger
+        payment = autofill_transaction(payment, client)
+        # Sign transaction
+        signed_tx = safe_sign_transaction(payment, wallet)
+        # Submit to XRPL
+        response = submit_transaction(signed_tx, client)
+
+        return {"tx_hash": response.result["hash"]}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ----------------------
 # /wallet/init - create or get XRPL wallet
