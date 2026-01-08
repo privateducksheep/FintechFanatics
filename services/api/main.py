@@ -5,7 +5,7 @@ from firebase_admin import credentials, auth
 from xrpl.wallet import Wallet
 from xrpl.clients import JsonRpcClient
 from xrpl.account import get_balance
-from xrpl.transaction import send_reliable_submission, safe_sign_and_autofill_transaction
+from xrpl.transaction import submit_and_wait, safe_sign_and_autofill_transaction
 from xrpl.models.transactions import Payment
 from xrpl.utils import xrp_to_drops
 import os
@@ -46,13 +46,22 @@ wallets = {}
 # ----------------------
 # /me endpoint - Firebase token verification
 # ----------------------
-@app.post("/me")
-async def verify_token(id_token: str):
+@app.post("/tx/send")
+async def send_tx(uid: str, to: str, amount: float):
+    wallet = wallets.get(uid)
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not initialized")
     try:
-        decoded = auth.verify_id_token(id_token)
-        return {"uid": decoded["uid"]}
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+        payment = Payment(
+            account=wallet.classic_address,
+            destination=to,
+            amount=xrp_to_drops(amount),
+        )
+        signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
+        tx_response = submit_and_wait(signed_tx, client)
+        return {"tx_hash": tx_response.result["hash"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ----------------------
 # /wallet/init - create or get XRPL wallet
