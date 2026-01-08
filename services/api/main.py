@@ -1,75 +1,106 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
-from firebase_admin import auth, credentials
+from firebase_admin import credentials, auth
+from xrpl.wallet import Wallet
+from xrpl.clients import JsonRpcClient
+from xrpl.account import get_balance
+from xrpl.transaction import send_reliable_submission, safe_sign_and_autofill_transaction
+from xrpl.models.transactions import Payment
+from xrpl.utils import xrp_to_drops
 import os
 from dotenv import load_dotenv
-import os
 
-load_dotenv()  
+# ----------------------
+# Load environment vars
+# ----------------------
+load_dotenv()
 
-cred = credentials.Certificate({
-    "type": "service_account",
-    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace("\\n", "\n"),
-    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-    # other fields...
-})
+# XRPL settings
+XRPL_SERVER = os.getenv("XRPL_SERVER") or "https://s.altnet.rippletest.net:51234"
+client = JsonRpcClient(XRPL_SERVER)
+
+# Firebase service account JSON
+# Put the JSON you downloaded in api/serviceAccountKey.json
+cred_path = "serviceAccountKey.json"
+cred = credentials.Certificate(cred_path)
 firebase_admin.initialize_app(cred)
 
-app = FastAPI()
+# FastAPI app
+app = FastAPI(title="FintechFanatics Backend")
 
+# Allow CORS (so frontend can call backend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# ----------------------
+# In-memory wallet store
+# ----------------------
+# { uid: Wallet() }
+wallets = {}
+
+# ----------------------
+# /me endpoint - Firebase token verification
+# ----------------------
 @app.post("/me")
 async def verify_token(id_token: str):
     try:
-        decoded_token = auth.verify_id_token(id_token)
-        return {"uid": decoded_token["uid"]}
+        decoded = auth.verify_id_token(id_token)
+        return {"uid": decoded["uid"]}
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
 
-
-from xrpl.wallet import Wallet
-
-wallets = {}  # Simple in-memory store; can use DB
-
+# ----------------------
+# /wallet/init - create or get XRPL wallet
+# ----------------------
 @app.post("/wallet/init")
 async def wallet_init(uid: str):
     if uid not in wallets:
-        seed = Wallet.create().seed
-        wallets[uid] = Wallet(seed=seed, sequence=0)
+        wallets[uid] = Wallet.create()
     return {"address": wallets[uid].classic_address}
 
-
-from xrpl.clients import JsonRpcClient
-from xrpl.account import get_balance
-
-client = JsonRpcClient(os.getenv("XRPL_SERVER"))
-
+# ----------------------
+# /wallet/balance - get XRP balance
+# ----------------------
 @app.get("/wallet/balance")
 async def wallet_balance(uid: str):
     wallet = wallets.get(uid)
     if not wallet:
-        raise HTTPException(404, detail="Wallet not initialized")
-    balance = get_balance(wallet.classic_address, client)
-    return {"balance": balance}
+        raise HTTPException(status_code=404, detail="Wallet not initialized")
+    try:
+        balance = get_balance(wallet.classic_address, client)
+        return {"balance": balance}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-from xrpl.transaction import send_reliable_submission, safe_sign_and_autofill_transaction
-from xrpl.models.transactions import Payment
-from xrpl.utils import xrp_to_drops
-
+# ----------------------
+# /tx/send - send XRP
+# ----------------------
 @app.post("/tx/send")
 async def send_tx(uid: str, to: str, amount: float):
     wallet = wallets.get(uid)
     if not wallet:
-        raise HTTPException(404, detail="Wallet not initialized")
-    payment = Payment(
-        account=wallet.classic_address,
-        amount=xrp_to_drops(amount),
-        destination=to,
-    )
-    signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
-    tx_response = send_reliable_submission(signed_tx, client)
-    return {"tx_hash": tx_response.result["hash"]}
+        raise HTTPException(status_code=404, detail="Wallet not initialized")
+    try:
+        payment = Payment(
+            account=wallet.classic_address,
+            destination=to,
+            amount=xrp_to_drops(amount),
+        )
+        signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
+        tx_response = send_reliable_submission(signed_tx, client)
+        return {"tx_hash": tx_response.result["hash"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-
+# ----------------------
+# /tx/history - optional, not implemented fully
+# ----------------------
+@app.get("/tx/history")
+async def tx_history(uid: str):
+    # Placeholder: implement XRPL account_tx or store locally
+    return {"history": []}
