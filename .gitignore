@@ -15,3 +15,9 @@ node_modules/
 .expo/
 dist/
 .DS_Store
+.venv/
+venv/
+.env
+serviceAccountKey.json
+__pycache__/
+*.pyc
