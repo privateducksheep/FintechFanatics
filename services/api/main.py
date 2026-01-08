@@ -5,9 +5,20 @@ from firebase_admin import credentials, auth
 from xrpl.wallet import Wallet
 from xrpl.clients import JsonRpcClient
 from xrpl.account import get_balance
-from xrpl.transaction import submit_and_wait, safe_sign_and_autofill_transaction
+from xrpl.models.transactions import Payment
+from xrpl.transaction import send_reliable_submission  # for older versions
+from xrpl.wallet import Wallet
+from xrpl.account import get_next_valid_seq_number
+from xrpl.utils import xrp_to_drops
+from xrpl.transaction import send_transaction
+from xrpl.clients import JsonRpcClient
+from xrpl.transaction import submit_transaction
+from xrpl.models.transactions import Transaction
+from xrpl.transaction import safe_sign_transaction, autofill_transaction
 from xrpl.models.transactions import Payment
 from xrpl.utils import xrp_to_drops
+from xrpl.clients import JsonRpcClient
+from xrpl.transaction import safe_sign_transaction, autofill_transaction, submit_transaction
 import os
 from dotenv import load_dotenv
 
@@ -89,6 +100,8 @@ async def wallet_balance(uid: str):
 # ----------------------
 # /tx/send - send XRP
 # ----------------------
+client = JsonRpcClient(XRPL_SERVER)
+
 @app.post("/tx/send")
 async def send_tx(uid: str, to: str, amount: float):
     wallet = wallets.get(uid)
@@ -98,10 +111,16 @@ async def send_tx(uid: str, to: str, amount: float):
         payment = Payment(
             account=wallet.classic_address,
             destination=to,
-            amount=xrp_to_drops(amount),
+            amount=xrp_to_drops(amount)
         )
-        signed_tx = safe_sign_and_autofill_transaction(payment, wallet, client)
-        tx_response = send_reliable_submission(signed_tx, client)
+
+        # Fill sequence, fee, last ledger etc.
+        payment = autofill_transaction(payment, client)
+        # Sign with wallet
+        signed_tx = safe_sign_transaction(payment, wallet)
+        # Submit
+        tx_response = submit_transaction(signed_tx, client)
+
         return {"tx_hash": tx_response.result["hash"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
