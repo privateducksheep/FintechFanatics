@@ -2,6 +2,10 @@ from fastapi import FastAPI, HTTPException
 import firebase_admin
 from firebase_admin import auth, credentials
 import os
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  
 
 cred = credentials.Certificate({
     "type": "service_account",

@@ -1,4 +1,4 @@
-#!/Users/max/Documents/GitHub/FintechFanatics/FintechFanatics/services/api/venv/bin/python3.12
+#!/Users/max/Documents/NUS/FintechFanatics/services/api/venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys
