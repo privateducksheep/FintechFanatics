@@ -31,11 +31,12 @@ export default function PayScreen() {
     if (!amount || Number.isNaN(n) || n <= 0) return Alert.alert("Invalid amount");
 
     try {
-      const res = await apiPost(
-        "/tx/send",
-        { to_address: toAddress, amount_xrp: n },
-        token
-      );
+        const uid = "demo-user"; // temporary demo user ID
+        const res = await apiPost(
+          "/tx/send",
+          { uid, to: toAddress, amount: n },
+          token
+        );
 
       router.push({
         pathname: "/receipt",

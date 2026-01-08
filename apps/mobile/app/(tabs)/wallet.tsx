@@ -22,10 +22,14 @@ export default function WalletScreen() {
     setLoading(true);
     setError("");
     try {
-      const init = await apiPost("/wallet/init", {}, token);
-      setAddress(init.address);
-      const bal = await apiGet("/wallet/balance", token);
-      setBalance(bal.balance_xrp);
+      const uid = "demo"; // TEMP
+      const data = await apiPost("/wallet/init", { uid }, token);
+      console.log("wallet init result:", data);
+
+      setAddress(data.address);
+      
+      const bal = await apiGet(`/wallet/balance?uid=${encodeURIComponent(uid)}`, token);
+      setBalance(bal.balance);
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {

@@ -4,6 +4,8 @@
 # FastAPI
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 
 # Firebase Admin
 import firebase_admin
@@ -45,9 +47,21 @@ app = FastAPI(title="FintechFanatics Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+class MeBody(BaseModel):
+    id_token: str
+
+class WalletInitBody(BaseModel):
+    uid: str
+
+class SendTxBody(BaseModel):
+    uid: str
+    to: str
+    amount: float
 
 # ----------------------
 # In-memory wallet store
@@ -59,9 +73,9 @@ wallets = {}
 # /me - Firebase token verification
 # ----------------------
 @app.post("/me")
-async def verify_token(id_token: str):
+async def verify_token(body: MeBody):
     try:
-        decoded = auth.verify_id_token(id_token)
+        decoded = auth.verify_id_token(body.id_token)
         return {"uid": decoded["uid"]}
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
@@ -70,7 +84,8 @@ async def verify_token(id_token: str):
 # /wallet/init - create/get wallet
 # ----------------------
 @app.post("/wallet/init")
-async def wallet_init(uid: str):
+async def wallet_init(body: WalletInitBody):
+    uid = body.uid
     if uid not in wallets:
         wallets[uid] = Wallet.create()
     return {"address": wallets[uid].classic_address}
@@ -93,7 +108,11 @@ async def wallet_balance(uid: str):
 # /tx/send - send XRP
 # ----------------------
 @app.post("/tx/send")
-async def send_tx(uid: str, to: str, amount: float):
+async def send_tx(body: SendTxBody):
+    uid = body.uid
+    to = body.to
+    amount = body.amount
+    
     wallet = wallets.get(uid)
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not initialized")
